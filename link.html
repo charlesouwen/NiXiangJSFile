@@ -87,12 +87,12 @@ body {
 <div class="beatWord">
 	<div id="itemBox1" style="display:none;">
         <div class="fieldset">
-            <div id="copy_tip" class="legend">长按框内>全选>复制>打开支付宝@APP</div>
-            <p id="itemWord" class="itemWord">复制框内整段文字，打开「支付宝@APP」即可「领取红包」并使用<span id="koulin"></span>
+            <div id="copy_tip" class="legend">长按框内>全选>复制>打开淘@宝APP</div>
+            <p id="itemWord" class="itemWord">复制框内整段文字，打开「淘@宝APP」即可「领取秘密券」并购买<span id="koulin"></span>
             </p>
         </div>
         <div type="button" data-clipboard-text="" class="itemCopy" id="itemCopy" onclick="">一键复制</div>
-        <a id="pcurl1" href="" style="background: #00a1ff;border: none;font-size: 16px;padding: 6px 15px;display: inline-block;margin: 10px 4px 10px 4px;border-radius: 16px;color: #fff;text-decoration: none;">一键领取</a>
+        <a id="pcurl1" href="" style="background: #00a1ff;border: none;font-size: 16px;padding: 6px 15px;display: inline-block;margin: 10px 4px 10px 4px;border-radius: 16px;color: #fff;text-decoration: none;">一键购买</a>
     </div>
     <div id="itemBox2" style="display:none;">
         <div class="fieldset fieldset2" style="border-color: #f00;margin-top:10px;">
@@ -157,7 +157,7 @@ $(function() {
 		clipboard.on('success',function(e) {
 		  $("#img").attr('src',itempic);
 		  if (e.trigger.disabled == false || e.trigger.disabled == undefined) {
-			e.trigger.innerHTML = "复制成功，打开支付寳APP领取";
+			e.trigger.innerHTML = "复制成功，打开掏寳APP购买";
 			e.trigger.style.backgroundColor = "#9ED29E";
 			e.trigger.style.borderColor = "#9ED29E";
 			e.trigger.disabled = true;
@@ -188,7 +188,7 @@ $(function() {
 		var clipboard2 = new Clipboard('.itemCopy2');
 		clipboard2.on('success',function(e) {
 		  if (e.trigger.disabled == false || e.trigger.disabled == undefined) {
-			e.trigger.innerHTML = "复制成功，打开支付寳APP领取";
+			e.trigger.innerHTML = "复制成功，打开掏寳领取";
 			e.trigger.style.backgroundColor = "#9ED29E";
 			e.trigger.style.borderColor = "#9ED29E";
 			e.trigger.disabled = true;
