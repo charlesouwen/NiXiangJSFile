@@ -1,7 +1,5 @@
-// autofanke.js
 (function() {
-    // 游戏控制器
-    class GameAutoPlayer {
+    class AutoGamePlayer {
         constructor() {
             this.isRunning = false;
             this.intervalId = null;
@@ -23,10 +21,24 @@
 
             const startBtn = document.createElement('button');
             startBtn.textContent = '开始';
+            startBtn.style.cssText = `
+                background-color: green;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+            `;
             startBtn.onclick = () => this.start();
 
             const stopBtn = document.createElement('button');
             stopBtn.textContent = '停止';
+            stopBtn.style.cssText = `
+                background-color: red;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+            `;
             stopBtn.onclick = () => this.stop();
 
             panel.appendChild(startBtn);
@@ -34,29 +46,70 @@
             document.body.appendChild(panel);
         }
 
-        // 自动寻找并点击图片
-        findAndClickImage() {
-            // 查找所有匹配特定URL的图片
-            const targetImages = Array.from(document.querySelectorAll(`img[src*="33222137.h40.faihdusr.com/4/37/ACgIABAEGAAgi-irvgYogt_0AzDMAzjLAw!160x160.png"]`));
-            
-            if (targetImages.length > 0) {
-                // 随机选择一个图片
-                const randomImage = targetImages[Math.floor(Math.random() * targetImages.length)];
-                
-                // 模拟点击
-                this.simulateClick(randomImage);
+        // 模拟点击屏幕上四分之一区域
+        simulateQuickClicks() {
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+
+            // 限制在屏幕上四分之一的上半部分
+            const startX = 0;
+            const endX = screenWidth / 2;
+            const startY = 0;
+            const endY = screenHeight / 4;
+
+            // 生成网格点击
+            const gridSize = 10; // 每10像素生成一个点击位置
+            for (let x = startX; x < endX; x += gridSize) {
+                for (let y = startY; y < endY; y += gridSize) {
+                    // 异步快速点击，延迟10-20ms
+                    setTimeout(() => {
+                        this.triggerTouch(x, y);
+                    }, Math.floor(Math.random() * 10) + 10);
+                }
             }
         }
 
-        // 模拟点击事件
-        simulateClick(element) {
-            if (element) {
-                const clickEvent = new MouseEvent('click', {
-                    view: window,
-                    bubbles: true,
-                    cancelable: true
-                });
-                element.dispatchEvent(clickEvent);
+        // 触发触摸事件
+        triggerTouch(x, y) {
+            const touchStartEvent = new TouchEvent('touchstart', {
+                bubbles: true,
+                cancelable: true,
+                touches: [
+                    new Touch({
+                        identifier: Date.now(),
+                        target: document.body,
+                        clientX: x,
+                        clientY: y,
+                        screenX: x,
+                        screenY: y
+                    })
+                ],
+                targetTouches: [],
+                changedTouches: []
+            });
+
+            const touchEndEvent = new TouchEvent('touchend', {
+                bubbles: true,
+                cancelable: true,
+                touches: [],
+                targetTouches: [],
+                changedTouches: [
+                    new Touch({
+                        identifier: Date.now(),
+                        target: document.body,
+                        clientX: x,
+                        clientY: y,
+                        screenX: x,
+                        screenY: y
+                    })
+                ]
+            });
+
+            // 分发事件
+            const targetElement = document.elementFromPoint(x, y);
+            if (targetElement) {
+                targetElement.dispatchEvent(touchStartEvent);
+                targetElement.dispatchEvent(touchEndEvent);
             }
         }
 
@@ -64,10 +117,12 @@
         start() {
             if (!this.isRunning) {
                 this.isRunning = true;
-                // 每50毫秒执行一次点击
+                // 每50ms执行一次全区域快速点击
                 this.intervalId = setInterval(() => {
-                    this.findAndClickImage();
+                    this.simulateQuickClicks();
                 }, 50);
+                
+                console.log('自动游戏已开始');
             }
         }
 
@@ -76,12 +131,16 @@
             if (this.isRunning) {
                 this.isRunning = false;
                 clearInterval(this.intervalId);
+                console.log('自动游戏已停止');
             }
         }
     }
 
     // 页面加载完成后初始化
     window.addEventListener('load', () => {
-        window.gameAutoPlayer = new GameAutoPlayer();
+        setTimeout(() => {
+            window.autoGamePlayer = new AutoGamePlayer();
+            console.log('自动游戏控制器已初始化');
+        }, 1000);
     });
 })();
