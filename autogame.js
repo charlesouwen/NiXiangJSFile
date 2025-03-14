@@ -1,5 +1,5 @@
 (function() {
-    class AutoGamePlayer {
+    class MobileAutoClicker {
         constructor() {
             this.isRunning = false;
             this.clickInterval = null;
@@ -18,7 +18,7 @@
                 z-index: 9999;
                 display: flex;
                 gap: 10px;
-                background: rgba(0,0,0,0.5);
+                background: rgba(0,0,0,0.7);
                 padding: 10px;
                 border-radius: 20px;
             `;
@@ -72,16 +72,14 @@
                 position: absolute;
                 left: ${x}px;
                 top: ${y}px;
-                width: 20px;
-                height: 20px;
+                width: 30px;
+                height: 30px;
                 border-radius: 50%;
-                background-color: rgba(255, 0, 0, 0.5);
+                background-color: rgba(0, 0, 0, 0.5);
                 transform: translate(-50%, -50%);
-                transition: all 0.3s ease-out;
                 animation: clickPulse 0.5s forwards;
             `;
 
-            // 添加脉冲动画
             const style = document.createElement('style');
             style.textContent = `
                 @keyframes clickPulse {
@@ -93,34 +91,30 @@
 
             this.visualizerContainer.appendChild(dot);
 
-            // 3秒后移除点
+            // 2秒后移除点
             setTimeout(() => {
                 this.visualizerContainer.removeChild(dot);
-            }, 3000);
+            }, 2000);
         }
 
-        // 模拟触摸事件
+        // 模拟移动设备触摸事件
         simulateTouch(x, y) {
-            // 可视化点击位置
-            this.visualizeClick(x, y);
-
-            // 控制台输出点击坐标
-            console.log(`点击坐标: (${x}, ${y})`);
-
             // 创建触摸事件
+            const touch = new Touch({
+                identifier: Date.now(),
+                target: document.body,
+                clientX: x,
+                clientY: y,
+                screenX: x,
+                screenY: y
+            });
+
             const touchStartEvent = new TouchEvent('touchstart', {
                 bubbles: true,
                 cancelable: true,
-                touches: [{
-                    identifier: Date.now(),
-                    target: document.body,
-                    clientX: x,
-                    clientY: y,
-                    screenX: x,
-                    screenY: y
-                }],
-                targetTouches: [],
-                changedTouches: []
+                touches: [touch],
+                targetTouches: [touch],
+                changedTouches: [touch]
             });
 
             const touchEndEvent = new TouchEvent('touchend', {
@@ -128,15 +122,14 @@
                 cancelable: true,
                 touches: [],
                 targetTouches: [],
-                changedTouches: [{
-                    identifier: Date.now(),
-                    target: document.body,
-                    clientX: x,
-                    clientY: y,
-                    screenX: x,
-                    screenY: y
-                }]
+                changedTouches: [touch]
             });
+
+            // 可视化点击位置
+            this.visualizeClick(x, y);
+
+            // 控制台输出点击坐标
+            console.log(`点击坐标: (${x}, ${y})`);
 
             // 获取点击目标并触发事件
             const target = document.elementFromPoint(x, y);
@@ -176,7 +169,7 @@
                 this.clickInterval = setInterval(() => {
                     this.performQuickClicks();
                 }, Math.floor(Math.random() * 50) + 50);
-                console.log('自动游戏已开始');
+                console.log('自动点击已开始');
             }
         }
 
@@ -185,7 +178,7 @@
             if (this.isRunning) {
                 this.isRunning = false;
                 clearInterval(this.clickInterval);
-                console.log('自动游戏已停止');
+                console.log('自动点击已停止');
             }
         }
     }
@@ -193,8 +186,8 @@
     // 页面加载完成后初始化
     window.addEventListener('load', () => {
         setTimeout(() => {
-            window.autoGamePlayer = new AutoGamePlayer();
-            console.log('自动游戏控制器已初始化');
+            window.mobileAutoClicker = new MobileAutoClicker();
+            console.log('移动设备自动点击器已初始化');
         }, 1000);
     });
 })();
