@@ -96,9 +96,37 @@
                 this.visualizerContainer.removeChild(dot);
             }, 2000);
         }
+        // 精确查找并点击目标图片
+        findAndClickTargetImage() {
+            // 目标图片的 URL
+            const targetImageUrl = "https://33222137.h40.faihdusr.com/4/37/ACgIABAEGAAgi-irvgYogt_0AzDMAzjLAw!160x160.png";
+            
+            // 查找所有匹配 URL 的图片元素
+            const targetImages = Array.from(document.querySelectorAll(`img[src="${targetImageUrl}"]`));
+            
+            if (targetImages.length > 0) {
+                targetImages.forEach(img => {
+                    // 获取图片的绝对位置
+                    const rect = img.getBoundingClientRect();
+                    const x = rect.left + rect.width / 2;
+                    const y = rect.top + rect.height / 2;
 
-        // 模拟移动设备触摸事件
+                    // 模拟点击
+                    this.simulateTouch(x, y);
+                });
+            } else {
+                console.log('未找到目标图片');
+            }
+        }
+
+        // 模拟触摸事件
         simulateTouch(x, y) {
+            // 可视化点击位置
+            this.visualizeClick(x, y);
+
+            // 控制台输出点击坐标
+            console.log(`点击坐标: (${x}, ${y})`);
+
             // 创建触摸事件
             const touch = new Touch({
                 identifier: Date.now(),
@@ -125,12 +153,6 @@
                 changedTouches: [touch]
             });
 
-            // 可视化点击位置
-            this.visualizeClick(x, y);
-
-            // 控制台输出点击坐标
-            console.log(`点击坐标: (${x}, ${y})`);
-
             // 获取点击目标并触发事件
             const target = document.elementFromPoint(x, y);
             if (target) {
@@ -139,35 +161,12 @@
             }
         }
 
-        // 快速点击屏幕上半部分
-        performQuickClicks() {
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-
-            // 限制在屏幕上半部分
-            const clickAreas = [
-                { x: width * 0.1, y: height * 0.1 },
-                { x: width * 0.3, y: height * 0.2 },
-                { x: width * 0.5, y: height * 0.15 },
-                { x: width * 0.7, y: height * 0.25 },
-                { x: width * 0.9, y: height * 0.1 }
-            ];
-
-            // 随机选择点击区域
-            clickAreas.forEach(area => {
-                // 使用setTimeout模拟随机延迟
-                setTimeout(() => {
-                    this.simulateTouch(area.x, area.y);
-                }, Math.floor(Math.random() * 20) + 10);
-            });
-        }
-
         // 开始自动游戏
         start() {
             if (!this.isRunning) {
                 this.isRunning = true;
                 this.clickInterval = setInterval(() => {
-                    this.performQuickClicks();
+                    this.findAndClickTargetImage();
                 }, Math.floor(Math.random() * 50) + 50);
                 console.log('自动点击已开始');
             }
@@ -189,5 +188,8 @@
             window.mobileAutoClicker = new MobileAutoClicker();
             console.log('移动设备自动点击器已初始化');
         }, 1000);
+    });
+})();
+
     });
 })();
