@@ -3,6 +3,7 @@
         constructor() {
             this.isRunning = false;
             this.clickInterval = null;
+            this.targetImageUrl = "https://33222137.h40.faihdusr.com/4/37/ACgIABAEGAAgi-irvgYogt_0AzDMAzjLAw!160x160.png";
             this.createControlPanel();
             this.createClickVisualizer();
         }
@@ -91,18 +92,15 @@
 
             this.visualizerContainer.appendChild(dot);
 
-            // 2秒后移除点
             setTimeout(() => {
                 this.visualizerContainer.removeChild(dot);
             }, 2000);
         }
+
         // 精确查找并点击目标图片
         findAndClickTargetImage() {
-            // 目标图片的 URL
-            const targetImageUrl = "https://33222137.h40.faihdusr.com/4/37/ACgIABAEGAAgi-irvgYogt_0AzDMAzjLAw!160x160.png";
-            
             // 查找所有匹配 URL 的图片元素
-            const targetImages = Array.from(document.querySelectorAll(`img[src="${targetImageUrl}"]`));
+            const targetImages = Array.from(document.querySelectorAll(`img[src="${this.targetImageUrl}"]`));
             
             if (targetImages.length > 0) {
                 targetImages.forEach(img => {
@@ -116,6 +114,14 @@
                 });
             } else {
                 console.log('未找到目标图片');
+                
+                // 如果没有找到图片，尝试在屏幕上半部分随机点击
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                const x = Math.random() * width;
+                const y = Math.random() * (height / 2);
+                
+                this.simulateTouch(x, y);
             }
         }
 
@@ -188,8 +194,5 @@
             window.mobileAutoClicker = new MobileAutoClicker();
             console.log('移动设备自动点击器已初始化');
         }, 1000);
-    });
-})();
-
     });
 })();
