@@ -2,8 +2,9 @@
     class AutoGamePlayer {
         constructor() {
             this.isRunning = false;
-            this.intervalId = null;
+            this.clickInterval = null;
             this.createControlPanel();
+            this.createClickVisualizer();
         }
 
         // 创建控制面板
@@ -11,34 +12,21 @@
             const panel = document.createElement('div');
             panel.style.cssText = `
                 position: fixed;
-                top: 20px;
+                top: 10px;
                 left: 50%;
                 transform: translateX(-50%);
                 z-index: 9999;
                 display: flex;
                 gap: 10px;
+                background: rgba(0,0,0,0.5);
+                padding: 10px;
+                border-radius: 20px;
             `;
 
-            const startBtn = document.createElement('button');
-            startBtn.textContent = '开始';
-            startBtn.style.cssText = `
-                background-color: green;
-                color: white;
-                padding: 10px 20px;
-                border: none;
-                border-radius: 5px;
-            `;
+            const startBtn = this.createButton('开始', 'green');
+            const stopBtn = this.createButton('停止', 'red');
+
             startBtn.onclick = () => this.start();
-
-            const stopBtn = document.createElement('button');
-            stopBtn.textContent = '停止';
-            stopBtn.style.cssText = `
-                background-color: red;
-                color: white;
-                padding: 10px 20px;
-                border: none;
-                border-radius: 5px;
-            `;
             stopBtn.onclick = () => this.stop();
 
             panel.appendChild(startBtn);
@@ -46,44 +34,91 @@
             document.body.appendChild(panel);
         }
 
-        // 模拟点击屏幕上四分之一区域
-        simulateQuickClicks() {
-            const screenWidth = window.innerWidth;
-            const screenHeight = window.innerHeight;
-
-            // 限制在屏幕上四分之一的上半部分
-            const startX = 0;
-            const endX = screenWidth / 2;
-            const startY = 0;
-            const endY = screenHeight / 4;
-
-            // 生成网格点击
-            const gridSize = 10; // 每10像素生成一个点击位置
-            for (let x = startX; x < endX; x += gridSize) {
-                for (let y = startY; y < endY; y += gridSize) {
-                    // 异步快速点击，延迟10-20ms
-                    setTimeout(() => {
-                        this.triggerTouch(x, y);
-                    }, Math.floor(Math.random() * 10) + 10);
-                }
-            }
+        // 创建按钮
+        createButton(text, color) {
+            const btn = document.createElement('button');
+            btn.textContent = text;
+            btn.style.cssText = `
+                background-color: ${color};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 15px;
+                cursor: pointer;
+                font-size: 14px;
+            `;
+            return btn;
         }
 
-        // 触发触摸事件
-        triggerTouch(x, y) {
+        // 创建点击位置可视化层
+        createClickVisualizer() {
+            this.visualizerContainer = document.createElement('div');
+            this.visualizerContainer.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 9998;
+            `;
+            document.body.appendChild(this.visualizerContainer);
+        }
+
+        // 可视化点击位置
+        visualizeClick(x, y) {
+            const dot = document.createElement('div');
+            dot.style.cssText = `
+                position: absolute;
+                left: ${x}px;
+                top: ${y}px;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                background-color: rgba(255, 0, 0, 0.5);
+                transform: translate(-50%, -50%);
+                transition: all 0.3s ease-out;
+                animation: clickPulse 0.5s forwards;
+            `;
+
+            // 添加脉冲动画
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes clickPulse {
+                    0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+
+            this.visualizerContainer.appendChild(dot);
+
+            // 3秒后移除点
+            setTimeout(() => {
+                this.visualizerContainer.removeChild(dot);
+            }, 3000);
+        }
+
+        // 模拟触摸事件
+        simulateTouch(x, y) {
+            // 可视化点击位置
+            this.visualizeClick(x, y);
+
+            // 控制台输出点击坐标
+            console.log(`点击坐标: (${x}, ${y})`);
+
+            // 创建触摸事件
             const touchStartEvent = new TouchEvent('touchstart', {
                 bubbles: true,
                 cancelable: true,
-                touches: [
-                    new Touch({
-                        identifier: Date.now(),
-                        target: document.body,
-                        clientX: x,
-                        clientY: y,
-                        screenX: x,
-                        screenY: y
-                    })
-                ],
+                touches: [{
+                    identifier: Date.now(),
+                    target: document.body,
+                    clientX: x,
+                    clientY: y,
+                    screenX: x,
+                    screenY: y
+                }],
                 targetTouches: [],
                 changedTouches: []
             });
@@ -93,35 +128,54 @@
                 cancelable: true,
                 touches: [],
                 targetTouches: [],
-                changedTouches: [
-                    new Touch({
-                        identifier: Date.now(),
-                        target: document.body,
-                        clientX: x,
-                        clientY: y,
-                        screenX: x,
-                        screenY: y
-                    })
-                ]
+                changedTouches: [{
+                    identifier: Date.now(),
+                    target: document.body,
+                    clientX: x,
+                    clientY: y,
+                    screenX: x,
+                    screenY: y
+                }]
             });
 
-            // 分发事件
-            const targetElement = document.elementFromPoint(x, y);
-            if (targetElement) {
-                targetElement.dispatchEvent(touchStartEvent);
-                targetElement.dispatchEvent(touchEndEvent);
+            // 获取点击目标并触发事件
+            const target = document.elementFromPoint(x, y);
+            if (target) {
+                target.dispatchEvent(touchStartEvent);
+                target.dispatchEvent(touchEndEvent);
             }
+        }
+
+        // 快速点击屏幕上半部分
+        performQuickClicks() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            // 限制在屏幕上半部分
+            const clickAreas = [
+                { x: width * 0.1, y: height * 0.1 },
+                { x: width * 0.3, y: height * 0.2 },
+                { x: width * 0.5, y: height * 0.15 },
+                { x: width * 0.7, y: height * 0.25 },
+                { x: width * 0.9, y: height * 0.1 }
+            ];
+
+            // 随机选择点击区域
+            clickAreas.forEach(area => {
+                // 使用setTimeout模拟随机延迟
+                setTimeout(() => {
+                    this.simulateTouch(area.x, area.y);
+                }, Math.floor(Math.random() * 20) + 10);
+            });
         }
 
         // 开始自动游戏
         start() {
             if (!this.isRunning) {
                 this.isRunning = true;
-                // 每50ms执行一次全区域快速点击
-                this.intervalId = setInterval(() => {
-                    this.simulateQuickClicks();
-                }, 50);
-                
+                this.clickInterval = setInterval(() => {
+                    this.performQuickClicks();
+                }, Math.floor(Math.random() * 50) + 50);
                 console.log('自动游戏已开始');
             }
         }
@@ -130,7 +184,7 @@
         stop() {
             if (this.isRunning) {
                 this.isRunning = false;
-                clearInterval(this.intervalId);
+                clearInterval(this.clickInterval);
                 console.log('自动游戏已停止');
             }
         }
