@@ -7,6 +7,7 @@
             this.lastScore = 0;
             this.createUI();
             this.initLogger();
+            this.findTouchHandler();
         }
 
         createUI() {
@@ -80,6 +81,22 @@
             }
         }
 
+        // 查找游戏原始的触摸处理函数
+        findTouchHandler() {
+            // 从游戏代码中可以看到，触摸处理函数是直接添加到canvas上的
+            this.touchHandler = null;
+            
+            // 尝试获取事件处理函数
+            const canvasObj = LF.global.canvasObj;
+            if (canvasObj && canvasObj._events && canvasObj._events.touchstart) {
+                this.touchHandler = canvasObj._events.touchstart[0];
+                this.log("找到触摸处理函数", "success");
+            } else {
+                // 如果找不到，尝试从全局获取
+                this.log("未找到触摸处理函数，使用备用方法", "error");
+            }
+        }
+
         findTarget() {
             if (!window.goods || !window.goods.length) return null;
             
@@ -100,23 +117,6 @@
                 // 计算距离
                 const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
                 
-                // 计算角度
-                const cos = relativeX / distance;
-                const sin = relativeY / distance;
-                
-                // 模拟钩子移动
-                const hookLX = (distance + GameArg.hook.height) * cos + roleX;
-                const hookLY = (distance + GameArg.hook.height) * sin + roleY;
-                
-                // 检查是否在碰撞区域内
-                const t = [
-                    hookLX, 
-                    hookLX - GameArg.money.width, 
-                    hookLY - GameArg.mLayer.y, 
-                    hookLY - GameArg.mLayer.y - 0.75 * GameArg.money.height, 
-                    GameArg.role.y - GameArg.mLayer.y - GameArg.money.height / 2
-                ];
-                
                 // 基础分数
                 let score = 1000 / (distance + 1);
                 
@@ -129,11 +129,6 @@
                 if (distance > LF.global.height * 0.6) {
                     score *= 0.3;
                 }
-                
-                // 根据游戏碰撞检测逻辑优化
-                if (gold.x < t[0] && gold.x > t[1] && gold.y < t[2] && gold.y > t[3] && gold.y < t[4]) {
-                    score *= 3; // 更高的权重给可能命中的目标
-                }
 
                 if (score > bestScore) {
                     bestScore = score;
@@ -141,8 +136,7 @@
                         x: gold.x,
                         y: gold.y + GameArg.mLayer.y,
                         score: score,
-                        distance: distance,
-                        gold: gold
+                        distance: distance
                     };
                 }
             }
@@ -153,44 +147,64 @@
         simulateTouch(target) {
             if (!target) return false;
             
-            // 强制设置可点击状态
-            if (!GameArg.cantouch) {
-                GameArg.cantouch = true;
-            }
-
             try {
-                // 计算实际点击坐标
-                const touchX = target.x;
-                const touchY = target.y;
-                
-                // 直接创建原生触摸事件
-                const touchObj = {
+                // 直接使用游戏中的触摸处理逻辑
+                const touchEvent = {
                     targetTouches: [{
-                        pageX: touchX,
-                        pageY: touchY + GameArg.boxTop
+                        pageX: target.x,
+                        pageY: target.y + GameArg.boxTop
                     }],
                     preventDefault: () => {},
                     stopPropagation: () => {}
                 };
                 
-                // 直接调用游戏的触摸处理函数
-                LF.global.canvasObj.dispatchEvent(new MouseEvent('mousedown', {
-                    clientX: touchX,
-                    clientY: touchY,
-                    bubbles: true,
-                    cancelable: true
-                }));
+                // 直接调用游戏中的触摸处理函数
+                const touchHandlerFn = this.touchHandler || window.a;
                 
-                // 备用方法：模拟点击事件
-                const clickEvent = document.createEvent('MouseEvents');
-                clickEvent.initMouseEvent(
-                    'click', true, true, window, 0,
-                    0, 0, touchX, touchY, false, false, false, false, 0, null
-                );
-                LF.global.canvasObj.dispatchEvent(clickEvent);
-                
-                this.log(`点击坐标: (${Math.round(touchX)}, ${Math.round(touchY)})`, 'success');
-                return true;
+                if (typeof touchHandlerFn === 'function') {
+                    touchHandlerFn(touchEvent);
+                    this.log(`点击坐标: (${Math.round(target.x)}, ${Math.round(target.y)})`, 'success');
+                    return true;
+                } else {
+                    // 如果找不到处理函数，尝试直接修改游戏状态
+                    if (GameArg.cantouch) {
+                        GameArg.cantouch = false;
+                        GameArg.play = true;
+                        GameArg.sz = true;
+                        GameArg.isFail = false;
+                        GameArg.jump = true;
+                        
+                        // 计算角度和方向
+                        GameArg.roleX = GameArg.role.x + 0.83 * GameArg.role.width;
+                        GameArg.roleY = GameArg.role.y + 0.37 * GameArg.role.height;
+                        GameArg.hook.x = GameArg.roleX;
+                        GameArg.hook.y = GameArg.roleY - GameArg.hook.height;
+                        
+                        const dx = target.x - GameArg.roleX;
+                        const dy = target.y - GameArg.boxTop - GameArg.roleY;
+                        const dr = Math.sqrt(dx * dx + dy * dy);
+                        
+                        GameArg.dx = dx;
+                        GameArg.dy = dy;
+                        GameArg.dr = dr;
+                        GameArg.cos = dx / dr;
+                        GameArg.sin = dy / dr;
+                        
+                        // 设置钩子角度
+                        GameArg.hook.rotate = 180 * Math.atan(dy / dx) / Math.PI + 90;
+                        if (dx < 0) GameArg.hook.rotate += 180;
+                        
+                        // 显示钩子和线
+                        GameArg.hook.visible = true;
+                        GameArg.line.visible = true;
+                        
+                        this.log(`直接修改游戏状态: (${Math.round(target.x)}, ${Math.round(target.y)})`, 'success');
+                        return true;
+                    }
+                    
+                    this.log("无法点击：游戏不可点击状态", "error");
+                    return false;
+                }
             } catch (err) {
                 this.log(`点击错误: ${err.message}`, 'error');
                 return false;
@@ -202,19 +216,23 @@
             
             // 检查游戏是否结束
             if (window._gameOver) {
-                this.log('游戏结束，尝试重新开始', 'error');
-                // 尝试重新开始游戏
-                if (typeof window.gameRestart === 'function') {
-                    window.gameRestart();
-                    // 给游戏一些时间初始化
-                    setTimeout(() => {
-                        if (this.isRunning) this.autoPlay();
-                    }, 1000);
-                }
+                this.log('游戏结束，等待重新开始', 'error');
+                setTimeout(() => {
+                    if (this.isRunning) this.autoPlay();
+                }, 1000);
                 return;
             }
 
             try {
+                // 检查是否可以点击
+                if (!GameArg.cantouch) {
+                    this.log('等待可点击状态...', 'info');
+                    setTimeout(() => {
+                        if (this.isRunning) this.autoPlay();
+                    }, 100);
+                    return;
+                }
+                
                 const target = this.findTarget();
                 if (target) {
                     if (this.simulateTouch(target)) {
@@ -230,27 +248,21 @@
                             
                             const stats = `点击: ${this.clickCount}, 得分: ${currentScore}, 成功率: ${(this.successCount/this.clickCount*100).toFixed(1)}%`;
                             this.log(stats, 'success');
-                            
-                            // 立即执行下一次
-                            if (this.isRunning) this.autoPlay();
-                        }, 100);
-                    } else {
-                        // 点击失败，立即重试
-                        if (this.isRunning) this.autoPlay();
+                        }, 500);
                     }
                 } else {
-                    this.log('没有找到合适的目标，等待...', 'error');
-                    // 短暂等待后重试
-                    setTimeout(() => {
-                        if (this.isRunning) this.autoPlay();
-                    }, 100);
+                    this.log('没有找到合适的目标', 'error');
                 }
-            } catch (err) {
-                this.log(`执行错误: ${err.message}`, 'error');
-                // 出错后短暂等待
+                
+                // 等待一段时间后再次尝试
                 setTimeout(() => {
                     if (this.isRunning) this.autoPlay();
                 }, 500);
+            } catch (err) {
+                this.log(`执行错误: ${err.message}`, 'error');
+                setTimeout(() => {
+                    if (this.isRunning) this.autoPlay();
+                }, 1000);
             }
         }
 
@@ -272,6 +284,14 @@
         }
     }
 
-    // 直接初始化控制器
-    window.gameController = new GameController();
+    // 等待游戏加载完成
+    const waitForGame = () => {
+        if (window.GameArg && window.LF && window.LF.global && window.LF.global.canvasObj) {
+            window.gameController = new GameController();
+        } else {
+            setTimeout(waitForGame, 500);
+        }
+    };
+
+    waitForGame();
 })();
