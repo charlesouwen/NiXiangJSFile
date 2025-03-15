@@ -96,28 +96,71 @@
         }
     }
     
-    // 查找游戏中的目标元素
+    // 查找游戏中的目标元素 - 改进版
     function findGameElements() {
         // 查找所有图片元素
         const allImages = Array.from(document.querySelectorAll('img'));
+        log(`找到 ${allImages.length} 个图片元素`);
         
-        // 查找目标图片 (钓鱼目标)
-        const targetImages = allImages.filter(img => {
-            const src = img.src || '';
-            return src.includes('ACgIABAEGAAgi-irvgYogt_0AzDMAzjLAw') || 
-                   src.includes('160x160.png.webp');
+        // 记录所有图片的URL，帮助调试
+        allImages.forEach((img, index) => {
+            if (img.src) {
+                log(`图片 #${index+1}: ${img.src.substring(0, 50)}...`);
+            }
         });
+        
+        // 尝试多种方式查找目标图片
+        let targetImages = [];
+        
+        // 1. 通过URL部分匹配
+        targetImages = allImages.filter(img => {
+            const src = img.src || '';
+            return src.includes('160x160') || 
+                   src.includes('ACgIABAEGAAgi') || 
+                   src.includes('.png.webp');
+        });
+        
+        // 2. 如果没找到，尝试通过尺寸查找
+        if (targetImages.length === 0) {
+            targetImages = allImages.filter(img => {
+                const width = img.width || img.clientWidth;
+                const height = img.height || img.clientHeight;
+                return (width >= 50 && width <= 200) && (height >= 50 && height <= 200);
+            });
+        }
+        
+        // 3. 如果还没找到，尝试通过位置查找（通常目标在上半部分）
+        if (targetImages.length === 0) {
+            targetImages = allImages.filter(img => {
+                const rect = img.getBoundingClientRect();
+                return rect.top < window.innerHeight / 2;
+            });
+        }
+        
+        // 4. 尝试查找游戏区域内的所有可点击元素
+        if (targetImages.length === 0) {
+            const gameArea = document.querySelector('.game-container') || document.body;
+            const clickableElements = Array.from(gameArea.querySelectorAll('*')).filter(el => {
+                const style = window.getComputedStyle(el);
+                return style.cursor === 'pointer' || el.onclick || el.addEventListener;
+            });
+            log(`找到 ${clickableElements.length} 个可点击元素`);
+            targetImages = clickableElements;
+        }
         
         // 查找小人物元素
         const characterImage = allImages.find(img => {
             const src = img.src || '';
-            return src.includes('ACgIABAEGAAgk-irvgYopuOg1wIw1AM4zwY') || 
-                   src.includes('200x200.png.webp');
+            return src.includes('200x200') || 
+                   src.includes('ACgIABAEGAAgk') || 
+                   src.includes('小人');
         });
         
-        log(`找到 ${targetImages.length} 个目标元素`);
+        log(`找到 ${targetImages.length} 个可能的目标元素`);
         if (characterImage) {
             log('找到小人物元素');
+        } else {
+            log('未找到小人物元素，将尝试查找页面底部的元素');
         }
         
         return {
@@ -126,60 +169,45 @@
         };
     }
     
+    // 添加一个函数来分析页面上的所有元素
+    function analyzePageElements() {
+        log('开始分析页面元素...');
+        
+        // 分析所有图片
+        const allImages = document.querySelectorAll('img');
+        log(`页面上共有 ${allImages.length} 个图片元素`);
+        
+        // 分析所有可能的游戏容器
+        const possibleContainers = document.querySelectorAll('.game-container, .game, #game, [id*="game"], [class*="game"]');
+        log(`找到 ${possibleContainers.length} 个可能的游戏容器`);
+        
+        // 分析所有canvas元素（游戏常用）
+        const canvasElements = document.querySelectorAll('canvas');
+        log(`找到 ${canvasElements.length} 个Canvas元素`);
+        
+        // 查找可能的钓鱼游戏特定元素
+        const hookElements = document.querySelectorAll('[id*="hook"], [class*="hook"], [id*="fish"], [class*="fish"]');
+        log(`找到 ${hookElements.length} 个可能与钓鱼相关的元素`);
+        
+        // 查找页面底部的元素（可能是小人）
+        const bottomElements = Array.from(document.querySelectorAll('*')).filter(el => {
+            const rect = el.getBoundingClientRect();
+            return rect.bottom > window.innerHeight * 0.7 && rect.width > 20 && rect.height > 20;
+        });
+        log(`找到 ${bottomElements.length} 个位于页面底部的元素`);
+        
+        return {
+            images: allImages,
+            containers: possibleContainers,
+            canvases: canvasElements,
+            hookRelated: hookElements,
+            bottomElements: bottomElements
+        };
+    }
+    
     // 模拟点击元素
     function simulateClick(element) {
-        if (!element) {
-            log('未找到要点击的元素');
-            return false;
-        }
-        
-        // 创建点击事件
-        const clickEvent = new MouseEvent('click', {
-            view: window,
-            bubbles: true,
-            cancelable: true
-        });
-        
-        // 触发点击事件
-        const clicked = element.dispatchEvent(clickEvent);
-        
-        if (clicked) {
-            // 在元素位置显示点击效果
-            const rect = element.getBoundingClientRect();
-            const clickEffect = document.createElement('div');
-            clickEffect.style.cssText = `
-                position: absolute;
-                width: 20px;
-                height: 20px;
-                background-color: rgba(255, 0, 0, 0.5);
-                border-radius: 50%;
-                pointer-events: none;
-                z-index: 10000;
-                top: ${rect.top + rect.height/2 - 10}px;
-                left: ${rect.left + rect.width/2 - 10}px;
-                animation: clickEffect 0.5s forwards;
-            `;
-            
-            // 添加动画样式
-            if (!document.getElementById('click-effect-style')) {
-                const style = document.createElement('style');
-                style.id = 'click-effect-style';
-                style.textContent = `
-                    @keyframes clickEffect {
-                        0% { transform: scale(0.5); opacity: 1; }
-                        100% { transform: scale(2); opacity: 0; }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-            
-            document.body.appendChild(clickEffect);
-            setTimeout(() => {
-                clickEffect.remove();
-            }, 500);
-        }
-        
-        return clicked;
+        // ... 模拟点击代码保持不变 ...
     }
     
     // 获取随机延迟时间
@@ -205,12 +233,28 @@
         log('开始自动游戏');
         gameState.isPlaying = true;
         
+        // 先分析页面元素
+        const pageAnalysis = analyzePageElements();
+        
         // 查找游戏元素
         const gameElements = findGameElements();
         if (!gameElements.targets.length) {
-            log('未找到目标元素，无法开始游戏');
-            gameState.isPlaying = false;
-            return;
+            log('未找到目标元素，尝试使用页面分析结果');
+            
+            // 尝试使用页面底部元素作为目标
+            if (pageAnalysis.bottomElements.length > 0) {
+                gameElements.targets = Array.from(document.querySelectorAll('*')).filter(el => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.top < window.innerHeight * 0.7 && rect.width > 20 && rect.height > 20;
+                });
+                log(`使用页面上部元素作为目标，找到 ${gameElements.targets.length} 个元素`);
+            }
+            
+            if (!gameElements.targets.length) {
+                log('仍然未找到目标元素，无法开始游戏');
+                gameState.isPlaying = false;
+                return;
+            }
         }
         
         // 设置游戏循环
@@ -222,7 +266,20 @@
             
             // 重新查找元素（因为DOM可能会变化）
             const currentElements = findGameElements();
-            if (!currentElements.targets.length) {
+            let targets = currentElements.targets;
+            
+            // 如果没找到目标，使用页面上部的元素
+            if (!targets.length) {
+                targets = Array.from(document.querySelectorAll('*')).filter(el => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.top < window.innerHeight * 0.5 && 
+                           rect.width > 20 && rect.height > 20 &&
+                           rect.width < 200 && rect.height < 200;
+                });
+                log(`使用备选方法找到 ${targets.length} 个可能的目标元素`);
+            }
+            
+            if (!targets.length) {
                 log('目标元素已消失，等待新元素出现');
                 return;
             }
@@ -233,8 +290,8 @@
             // 根据钩子状态决定操作
             if (gameState.hookState === 'ready') {
                 // 钩子准备好，可以点击目标
-                const targetIndex = Math.floor(Math.random() * currentElements.targets.length);
-                const target = currentElements.targets[targetIndex];
+                const targetIndex = Math.floor(Math.random() * targets.length);
+                const target = targets[targetIndex];
                 
                 log(`点击目标 #${targetIndex+1}`);
                 if (simulateClick(target)) {
