@@ -1,4 +1,4 @@
-// 元素检查工具
+// 简化版元素检查工具 - 点击即可查看元素信息
 (function() {
     // 创建信息显示面板
     const infoPanel = document.createElement('div');
@@ -21,10 +21,10 @@
     `;
     document.body.appendChild(infoPanel);
     
-    // 创建状态指示器
-    const statusIndicator = document.createElement('div');
-    statusIndicator.id = 'inspector-status';
-    statusIndicator.style.cssText = `
+    // 创建开关按钮
+    const toggleButton = document.createElement('button');
+    toggleButton.id = 'inspector-toggle';
+    toggleButton.style.cssText = `
         position: fixed;
         top: 10px;
         right: 10px;
@@ -35,12 +35,13 @@
         font-family: sans-serif;
         font-size: 12px;
         z-index: 10000;
+        border: none;
+        cursor: pointer;
     `;
-    statusIndicator.textContent = '元素检查工具已启用 (长按元素查看信息)';
-    document.body.appendChild(statusIndicator);
+    toggleButton.textContent = '启用元素检查';
+    document.body.appendChild(toggleButton);
     
-    // 长按计时器
-    let pressTimer = null;
+    // 检查状态
     let isInspecting = false;
     
     // 显示元素信息
@@ -53,27 +54,13 @@
         const className = element.className ? `class="${element.className}"` : '';
         const src = element.src ? `src="${element.src}"` : '';
         const href = element.href ? `href="${element.href}"` : '';
-        const alt = element.alt ? `alt="${element.alt}"` : '';
-        const style = element.getAttribute('style') ? `style="${element.getAttribute('style')}"` : '';
         
         // 计算元素位置
         const rect = element.getBoundingClientRect();
         const position = `位置: 左${Math.round(rect.left)}px, 上${Math.round(rect.top)}px, 宽${Math.round(rect.width)}px, 高${Math.round(rect.height)}px`;
         
-        // 获取计算样式
-        const computedStyle = window.getComputedStyle(element);
-        const importantStyles = {
-            display: computedStyle.display,
-            position: computedStyle.position,
-            visibility: computedStyle.visibility,
-            zIndex: computedStyle.zIndex,
-            opacity: computedStyle.opacity,
-            backgroundColor: computedStyle.backgroundColor,
-            cursor: computedStyle.cursor
-        };
-        
         // 构建HTML代码
-        let htmlCode = `<${tagName} ${id} ${className} ${src} ${href} ${alt} ${style}></${tagName}>`;
+        let htmlCode = `<${tagName} ${id} ${className} ${src} ${href}>`;
         
         // 构建信息面板内容
         let infoContent = `
@@ -85,19 +72,8 @@
             ${href ? `<p><strong>链接:</strong> ${element.href}</p>` : ''}
             <p><strong>${position}</strong></p>
             
-            <h3>重要样式</h3>
-            <ul>
-                ${Object.entries(importantStyles).map(([key, value]) => `<li><strong>${key}:</strong> ${value}</li>`).join('')}
-            </ul>
-            
             <h3>HTML代码</h3>
             <pre>${htmlCode}</pre>
-            
-            <h3>内部文本</h3>
-            <pre>${element.innerText || '(无文本内容)'}</pre>
-            
-            <h3>子元素数量</h3>
-            <p>${element.children.length} 个子元素</p>
             
             <button id="copy-element-info">复制信息</button>
             <button id="close-info-panel">关闭</button>
@@ -141,39 +117,60 @@ ${htmlCode}
         setTimeout(() => {
             element.style.outline = originalOutline;
         }, 5000);
+        
+        // 在控制台也输出信息
+        console.log('元素信息:', {
+            tagName,
+            id: element.id,
+            className: element.className,
+            src: element.src,
+            position: {
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height
+            },
+            element
+        });
     }
     
-    // 鼠标按下事件
-    document.addEventListener('mousedown', function(e) {
-        if (isInspecting) return;
+    // 切换检查模式
+    function toggleInspector() {
+        isInspecting = !isInspecting;
+        toggleButton.textContent = isInspecting ? '停用元素检查' : '启用元素检查';
+        toggleButton.style.background = isInspecting ? '#f44336' : '#4CAF50';
         
-        pressTimer = setTimeout(function() {
-            isInspecting = true;
-            showElementInfo(e.target);
-            
-            // 2秒后重置检查状态
-            setTimeout(() => {
-                isInspecting = false;
-            }, 2000);
-        }, 500); // 长按500毫秒触发
-    });
+        if (isInspecting) {
+            document.body.style.cursor = 'crosshair';
+        } else {
+            document.body.style.cursor = '';
+        }
+    }
     
-    // 鼠标松开事件
-    document.addEventListener('mouseup', function() {
-        clearTimeout(pressTimer);
-    });
+    // 点击开关按钮
+    toggleButton.addEventListener('click', toggleInspector);
     
-    // 鼠标移出事件
-    document.addEventListener('mouseout', function() {
-        clearTimeout(pressTimer);
-    });
+    // 点击事件处理
+    document.addEventListener('click', function(e) {
+        if (!isInspecting) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        showElementInfo(e.target);
+    }, true);
     
-    // 添加键盘快捷键 (Esc键关闭面板)
+    // 添加键盘快捷键 (Esc键关闭面板和检查模式)
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && infoPanel.style.display === 'block') {
-            infoPanel.style.display = 'none';
+        if (e.key === 'Escape') {
+            if (infoPanel.style.display === 'block') {
+                infoPanel.style.display = 'none';
+            }
+            if (isInspecting) {
+                toggleInspector();
+            }
         }
     });
     
-    console.log('元素检查工具已加载，长按页面元素查看详细信息');
+    console.log('元素检查工具已加载，点击"启用元素检查"按钮开始使用');
 })();
