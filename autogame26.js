@@ -7,7 +7,7 @@
             this.lastScore = 0;
             this.createUI();
             this.initLogger();
-            this.waitForTouchHandler();
+            this.waitForGameInit();
         }
 
         createUI() {
@@ -81,15 +81,13 @@
             }
         }
 
-        waitForTouchHandler() {
+        waitForGameInit() {
             const checkInterval = setInterval(() => {
-                const canvasObj = LF.global.canvasObj;
-                if (canvasObj && canvasObj._events && canvasObj._events.touchstart) {
-                    this.touchHandler = canvasObj._events.touchstart[0];
-                    this.log("找到触摸处理函数", "success");
+                if (window.GameArg && window.LF && window.LF.global && window.LF.global.canvasObj) {
+                    this.log("游戏初始化完成", "success");
                     clearInterval(checkInterval);
                 } else {
-                    this.log("等待触摸处理函数...", "info");
+                    this.log("等待游戏初始化...", "info");
                 }
             }, 1000);
         }
@@ -138,19 +136,31 @@
         }
 
         simulateTouch(target) {
-            if (!target || !this.touchHandler) return false;
+            if (!target) return false;
             
             try {
-                const touchEvent = {
-                    targetTouches: [{
+                const touchEvent = new TouchEvent('touchstart', {
+                    bubbles: true,
+                    cancelable: true,
+                    touches: [{
+                        identifier: Date.now(),
+                        target: LF.global.canvasObj,
                         pageX: target.x,
-                        pageY: target.y + GameArg.boxTop
+                        pageY: target.y + GameArg.boxTop,
+                        clientX: target.x,
+                        clientY: target.y
                     }],
-                    preventDefault: () => {},
-                    stopPropagation: () => {}
-                };
-                
-                this.touchHandler(touchEvent);
+                    targetTouches: [{
+                        identifier: Date.now(),
+                        target: LF.global.canvasObj,
+                        pageX: target.x,
+                        pageY: target.y + GameArg.boxTop,
+                        clientX: target.x,
+                        clientY: target.y
+                    }]
+                });
+
+                LF.global.canvasObj.dispatchEvent(touchEvent);
                 this.log(`点击坐标: (${Math.round(target.x)}, ${Math.round(target.y)})`, 'success');
                 return true;
             } catch (err) {
