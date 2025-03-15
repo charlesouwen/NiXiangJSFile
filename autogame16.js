@@ -5,7 +5,7 @@
             this.clickCount = 0;
             this.createUI();
             this.initLogger();
-            this.createDebugCanvas();
+            this.initDebugElements();
         }
 
         createUI() {
@@ -15,7 +15,7 @@
                 top: 10px;
                 left: 50%;
                 transform: translateX(-50%);
-                z-index: 9999;
+                z-index: 10000;
                 background: rgba(0, 0, 0, 0.8);
                 padding: 10px;
                 border-radius: 5px;
@@ -55,55 +55,64 @@
             this.stopBtn.onclick = () => this.stop();
         }
 
-        createDebugCanvas() {
-            this.debugCanvas = document.createElement('canvas');
-            this.debugCanvas.style.cssText = `
+        initDebugElements() {
+            // 创建十字准星容器
+            this.crosshair = document.createElement('div');
+            this.crosshair.style.cssText = `
                 position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
                 pointer-events: none;
-                z-index: 9998;
+                z-index: 9999;
+                display: none;
             `;
-            document.body.appendChild(this.debugCanvas);
-            this.debugCtx = this.debugCanvas.getContext('2d');
-            this.resizeDebugCanvas();
-            window.addEventListener('resize', () => this.resizeDebugCanvas());
-        }
 
-        resizeDebugCanvas() {
-            this.debugCanvas.width = window.innerWidth;
-            this.debugCanvas.height = window.innerHeight;
-        }
-
-        drawDebugInfo(x, y) {
-            this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
-            
-            // 绘制十字准星
-            this.debugCtx.beginPath();
-            this.debugCtx.strokeStyle = 'red';
-            this.debugCtx.lineWidth = 2;
-            
             // 水平线
-            this.debugCtx.moveTo(x - 20, y);
-            this.debugCtx.lineTo(x + 20, y);
-            
+            const hLine = document.createElement('div');
+            hLine.style.cssText = `
+                position: absolute;
+                width: 40px;
+                height: 2px;
+                background: #ff0000;
+                left: -20px;
+                top: -1px;
+            `;
+
             // 垂直线
-            this.debugCtx.moveTo(x, y - 20);
-            this.debugCtx.lineTo(x, y + 20);
-            
-            this.debugCtx.stroke();
-            
-            // 绘制坐标文本
-            this.debugCtx.fillStyle = 'red';
-            this.debugCtx.font = '12px Arial';
-            this.debugCtx.fillText(`(${Math.round(x)}, ${Math.round(y)})`, x + 25, y + 25);
-            
-            // 3秒后清除
+            const vLine = document.createElement('div');
+            vLine.style.cssText = `
+                position: absolute;
+                width: 2px;
+                height: 40px;
+                background: #ff0000;
+                left: -1px;
+                top: -20px;
+            `;
+
+            // 坐标文本
+            this.coordsText = document.createElement('div');
+            this.coordsText.style.cssText = `
+                position: absolute;
+                color: #ff0000;
+                font-size: 12px;
+                white-space: nowrap;
+                left: 25px;
+                top: 25px;
+            `;
+
+            this.crosshair.appendChild(hLine);
+            this.crosshair.appendChild(vLine);
+            this.crosshair.appendChild(this.coordsText);
+            document.body.appendChild(this.crosshair);
+        }
+
+        showCrosshair(x, y) {
+            this.crosshair.style.display = 'block';
+            this.crosshair.style.left = x + 'px';
+            this.crosshair.style.top = y + 'px';
+            this.coordsText.textContent = `(${Math.round(x)}, ${Math.round(y)})`;
+
             setTimeout(() => {
-                this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
-            }, 3000);
+                this.crosshair.style.display = 'none';
+            }, 2000);
         }
 
         initLogger() {
@@ -116,11 +125,11 @@
                 color: white;
                 padding: 10px;
                 border-radius: 5px;
-                max-height: 200px;
+                max-height: 300px;
                 overflow-y: auto;
                 font-size: 12px;
-                z-index: 9999;
-                width: 200px;
+                z-index: 10000;
+                width: 250px;
             `;
             document.body.appendChild(this.logDiv);
         }
@@ -152,7 +161,7 @@
                 
                 // 优化评分系统
                 const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
-                const angleScore = Math.abs(relativeY) / (Math.abs(relativeX) + 1); // 倾向于选择正上方的金币
+                const angleScore = Math.abs(relativeY) / (Math.abs(relativeX) + 1);
                 const score = (1000 / (distance + 1)) * (1 + angleScore);
 
                 if (score > bestScore) {
@@ -175,48 +184,41 @@
 
             try {
                 const canvas = LF.global.canvasObj;
-                const rect = canvas.getBoundingClientRect();
                 
-                // 计算实际点击坐标
-                const clickX = target.x;
-                const clickY = target.y;
+                // 计算实际点击位置
+                const touchX = target.x;
+                const touchY = target.y + GameArg.boxTop;
                 
-                // 显示调试信息
-                this.drawDebugInfo(clickX + rect.left, clickY + GameArg.boxTop);
+                // 显示点击位置
+                this.showCrosshair(touchX, touchY);
                 
-                // 创建触摸事件
+                // 创建触摸点对象
+                const touch = {
+                    identifier: Date.now(),
+                    target: canvas,
+                    clientX: touchX,
+                    clientY: touchY,
+                    pageX: touchX,
+                    pageY: touchY,
+                    screenX: touchX,
+                    screenY: touchY
+                };
+
+                // 创建触摸事件对象
                 const touchEvent = {
-                    targetTouches: [{
-                        pageX: clickX,
-                        pageY: clickY + GameArg.boxTop
-                    }],
+                    targetTouches: [touch],
                     preventDefault: () => {},
                     stopPropagation: () => {}
                 };
 
-                // 直接调用游戏的触摸处理函数
-                if (typeof GameArg.touchHandler === 'function') {
-                    GameArg.touchHandler(touchEvent);
+                // 调用游戏的触摸处理函数
+                if (typeof a === 'function') {
+                    a(touchEvent);
+                    this.log(`触发点击: (${touchX}, ${touchY})`, 'success');
+                    return true;
                 } else {
-                    canvas.dispatchEvent(new TouchEvent('touchstart', {
-                        bubbles: true,
-                        cancelable: true,
-                        touches: [new Touch({
-                            identifier: Date.now(),
-                            target: canvas,
-                            clientX: clickX + rect.left,
-                            clientY: clickY + GameArg.boxTop,
-                            pageX: clickX + rect.left,
-                            pageY: clickY + GameArg.boxTop
-                        })],
-                        targetTouches: [touchEvent.targetTouches[0]],
-                        view: window
-                    }));
+                    throw new Error('找不到触摸处理函数');
                 }
-                
-                this.log(`点击坐标: (${clickX.toFixed(0)}, ${clickY.toFixed(0)})`);
-                this.log(`相对位置: dx=${target.relativeX.toFixed(0)}, dy=${target.relativeY.toFixed(0)}`, 'success');
-                return true;
             } catch (err) {
                 this.log(`点击错误: ${err.message}`, 'error');
                 return false;
@@ -242,10 +244,7 @@
                 }
 
                 // 动态延迟
-                const baseDelay = 800;
-                const speedFactor = Math.min(this.clickCount * 10, 300);
-                const delay = Math.max(500, baseDelay - speedFactor);
-                
+                const delay = Math.max(800, 1200 - (this.clickCount * 20));
                 await new Promise(resolve => setTimeout(resolve, delay));
                 
                 if (this.isRunning) this.autoPlay();
@@ -275,19 +274,4 @@
 
     // 初始化游戏控制器
     window.gameController = new GameController();
-
-    // 保存原始触摸处理函数
-    if (window.GameArg) {
-        GameArg.touchHandler = a;
-    }
-
-    // 监听游戏结束
-    const originalGameOver = window.gameOver;
-    window.gameOver = function(score) {
-        if (window.gameController) {
-            window.gameController.stop();
-            window.gameController.log(`游戏结束，得分: ${score}`);
-        }
-        return originalGameOver.apply(this, arguments);
-    };
 })();
