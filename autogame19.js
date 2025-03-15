@@ -4,21 +4,16 @@
             this.isRunning = false;
             this.clickCount = 0;
             this.lastClickTime = 0;
-            this.successCount = 0;
-            this.failCount = 0;
             this.createUI();
             this.initLogger();
             this.initDebugLines();
-            this.baseDelay = 600;
-            this.minDelay = 200;
-            this.initGameStateMonitor();
         }
 
         createUI() {
             const panel = document.createElement('div');
             panel.style.cssText = `
                 position: fixed;
-                top: 10px;
+                bottom: 120px;
                 left: 50%;
                 transform: translateX(-50%);
                 z-index: 9999;
@@ -118,7 +113,7 @@
             this.logDiv = document.createElement('div');
             this.logDiv.style.cssText = `
                 position: fixed;
-                bottom: 10px;
+                bottom: 60px;
                 left: 50%;
                 transform: translateX(-50%);
                 background: rgba(0, 0, 0, 0.7);
@@ -147,49 +142,6 @@
             }
         }
 
-        initGameStateMonitor() {
-            // 监控游戏状态变化
-            let lastGrade = 0;
-            setInterval(() => {
-                if (this.isRunning) {
-                    const currentGrade = hg.grade.val || 0;
-                    if (currentGrade > lastGrade) {
-                        this.successCount++;
-                        lastGrade = currentGrade;
-                    }
-                }
-            }, 100);
-        }
-
-        calculateDelay() {
-            const now = Date.now();
-            const gameLevel = GameArg.level || 1;
-            const gameSpeed = GameArg.speed || 1;
-            
-            // 基础延迟随游戏等级和速度动态调整
-            let delay = this.baseDelay - (gameLevel * 30) - (gameSpeed * 50);
-            
-            // 根据成功率调整延迟
-            const successRate = this.successCount / (this.clickCount || 1);
-            if (successRate < 0.5) {
-                delay += 100; // 成功率低时增加延迟
-            } else if (successRate > 0.8) {
-                delay -= 50; // 成功率高时减少延迟
-            }
-            
-            // 确保最小延迟
-            delay = Math.max(this.minDelay, delay);
-            
-            // 如果距离上次点击时间太短，增加延迟
-            const timeSinceLastClick = now - this.lastClickTime;
-            if (timeSinceLastClick < 300) {
-                delay += 100;
-            }
-            
-            this.lastClickTime = now;
-            return delay;
-        }
-
         findTarget() {
             if (!window.goods || !window.goods.length) return null;
             
@@ -198,8 +150,8 @@
 
             const roleX = GameArg.role.x + GameArg.role.width * 0.83;
             const roleY = GameArg.role.y + GameArg.role.height * 0.37;
-            const gameSpeed = GameArg.speed || 1;
-            const gameLevel = GameArg.level || 1;
+            const moneyWidth = GameArg.money.width;
+            const moneyHeight = GameArg.money.height;
 
             for (let gold of window.goods) {
                 if (!gold || !gold.x || !gold.y) continue;
@@ -210,33 +162,48 @@
                 
                 // 计算抓取难度
                 const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
-                const angle = Math.atan2(relativeY, relativeX);
                 
-                // 优化评分系统
-                let score = 1000 / (distance + 1);
+                // 预测钩子位置
+                const hookX = distance * (relativeX / Math.sqrt(relativeX * relativeX + relativeY * relativeY));
+                const hookY = distance * (relativeY / Math.sqrt(relativeX * relativeX + relativeY * relativeY));
                 
-                // 根据游戏速度和等级调整评分
-                score *= (1 + gameSpeed * 0.1);
-                score *= (1 + gameLevel * 0.05);
-                
-                // 优先选择上方的金币
-                if (relativeY < 0) {
-                    score *= 1.2;
-                }
-                
-                // 避免选择太远的目标
-                if (distance > LF.global.height * 0.7) {
-                    score *= 0.5;
-                }
+                // 检查是否在有效范围内
+                if (hookX > 0 && hookX < LF.global.width && 
+                    hookY > -LF.global.height && hookY < LF.global.height) {
+                    
+                    // 优化评分系统
+                    let score = 1000 / (distance + 1);
+                    
+                    // 优先选择上方的金币
+                    if (relativeY < 0) {
+                        score *= 1.5;
+                    }
+                    
+                    // 避免选择太远的目标
+                    if (distance > LF.global.height * 0.6) {
+                        score *= 0.3;
+                    }
+                    
+                    // 检查碰撞区域
+                    const hookLX = hookX + roleX;
+                    const hookLY = hookY + roleY;
+                    
+                    if (gold.x < hookLX && 
+                        gold.x > hookLX - moneyWidth && 
+                        gold.y < hookLY - GameArg.mLayer.y && 
+                        gold.y > hookLY - GameArg.mLayer.y - moneyHeight * 0.75) {
+                        score *= 2;
+                    }
 
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestTarget = {
-                        x: gold.x,
-                        y: gold.y + GameArg.mLayer.y,
-                        score: score,
-                        distance: distance
-                    };
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestTarget = {
+                            x: gold.x,
+                            y: gold.y + GameArg.mLayer.y,
+                            score: score,
+                            distance: distance
+                        };
+                    }
                 }
             }
 
@@ -247,9 +214,6 @@
             if (!target || !GameArg.cantouch) return false;
 
             try {
-                const canvas = LF.global.canvasObj;
-                const rect = canvas.getBoundingClientRect();
-                
                 // 计算实际点击坐标
                 const touchX = target.x;
                 const touchY = target.y;
@@ -257,27 +221,45 @@
                 // 显示调试信息
                 this.drawDebugInfo(touchX, touchY, target);
 
-                // 创建触摸事件对象
-                const touchEvent = {
-                    targetTouches: [{
-                        identifier: Date.now(),
-                        target: canvas,
-                        pageX: touchX,
-                        pageY: touchY + GameArg.boxTop
-                    }],
-                    preventDefault: () => {},
-                    stopPropagation: () => {}
+                // 创建触摸事件
+                const touch = {
+                    pageX: touchX,
+                    pageY: touchY + GameArg.boxTop
                 };
 
                 // 调用游戏的触摸处理函数
-                GameArg.touchHandler && GameArg.touchHandler(touchEvent);
-                
-                this.log(`点击: (${Math.round(touchX)}, ${Math.round(touchY)}), 距离: ${Math.round(target.distance)}, 得分: ${Math.round(target.score)}`);
-                return true;
+                if (typeof a === 'function') {
+                    a({
+                        targetTouches: [touch],
+                        preventDefault: () => {},
+                        stopPropagation: () => {}
+                    });
+                    
+                    this.log(`点击: (${Math.round(touchX)}, ${Math.round(touchY)}), 距离: ${Math.round(target.distance)}`);
+                    return true;
+                }
+                return false;
             } catch (err) {
                 this.log(`点击错误: ${err.message}`, 'error');
                 return false;
             }
+        }
+
+        calculateDelay() {
+            const gameLevel = GameArg.level || 1;
+            const gameSpeed = GameArg.speed || 1;
+            
+            // 基础延迟随游戏等级和速度动态调整
+            let delay = 1000 - (gameLevel * 30) - (gameSpeed * 50);
+            
+            // 根据成功率调整延迟
+            const successRate = (hg.grade.val || 0) / (this.clickCount * 50 || 1);
+            if (successRate < 0.8) {
+                delay += 200; // 成功率低时增加延迟
+            }
+            
+            // 确保最小延迟
+            return Math.max(500, delay);
         }
 
         async autoPlay() {
@@ -294,7 +276,8 @@
                 if (target) {
                     if (this.simulateTouch(target)) {
                         this.clickCount++;
-                        const stats = `点击: ${this.clickCount}, 成功: ${this.successCount}, 成功率: ${((this.successCount/this.clickCount)*100).toFixed(1)}%, 等级: ${GameArg.level.toFixed(1)}`;
+                        const score = hg.grade.val || 0;
+                        const stats = `点击: ${this.clickCount}, 得分: ${score}, 平均: ${(score/this.clickCount).toFixed(1)}, 等级: ${GameArg.level.toFixed(1)}`;
                         this.log(stats, 'success');
                     }
                 }
@@ -315,16 +298,9 @@
             if (this.isRunning) return;
             this.isRunning = true;
             this.clickCount = 0;
-            this.successCount = 0;
-            this.failCount = 0;
             this.log('自动游戏开始');
             this.startBtn.style.background = '#45a049';
             this.autoPlay();
-            
-            // 保存原始触摸处理函数
-            if (!GameArg.touchHandler) {
-                GameArg.touchHandler = a;
-            }
         }
 
         stop() {
