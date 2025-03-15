@@ -139,29 +139,36 @@
             if (!target) return false;
             
             try {
+                const canvas = LF.global.canvasObj;
+                const rect = canvas.getBoundingClientRect();
+                const touchX = target.x + rect.left;
+                const touchY = target.y + GameArg.boxTop;
+                
+                this.drawDebugLines(touchX, touchY);
+
                 const touchEvent = new TouchEvent('touchstart', {
                     bubbles: true,
                     cancelable: true,
                     touches: [{
                         identifier: Date.now(),
-                        target: LF.global.canvasObj,
-                        pageX: target.x,
-                        pageY: target.y + GameArg.boxTop,
-                        clientX: target.x,
-                        clientY: target.y
+                        target: canvas,
+                        pageX: touchX,
+                        pageY: touchY,
+                        clientX: touchX,
+                        clientY: touchY
                     }],
                     targetTouches: [{
                         identifier: Date.now(),
-                        target: LF.global.canvasObj,
-                        pageX: target.x,
-                        pageY: target.y + GameArg.boxTop,
-                        clientX: target.x,
-                        clientY: target.y
+                        target: canvas,
+                        pageX: touchX,
+                        pageY: touchY,
+                        clientX: touchX,
+                        clientY: touchY
                     }]
                 });
 
-                LF.global.canvasObj.dispatchEvent(touchEvent);
-                this.log(`点击坐标: (${Math.round(target.x)}, ${Math.round(target.y)})`, 'success');
+                canvas.dispatchEvent(touchEvent);
+                this.log(`点击坐标: (${Math.round(touchX)}, ${Math.round(touchY)})`, 'success');
                 return true;
             } catch (err) {
                 this.log(`点击错误: ${err.message}`, 'error');
