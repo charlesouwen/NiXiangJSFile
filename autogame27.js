@@ -7,7 +7,6 @@
             this.lastScore = 0;
             this.createUI();
             this.initLogger();
-            this.waitForGameInit();
         }
 
         createUI() {
@@ -81,42 +80,38 @@
             }
         }
 
-        waitForGameInit() {
-            const checkInterval = setInterval(() => {
-                if (window.GameArg && window.LF && window.LF.global && window.LF.global.canvasObj) {
-                    this.log("游戏初始化完成", "success");
-                    clearInterval(checkInterval);
-                } else {
-                    this.log("等待游戏初始化...", "info");
-                }
-            }, 1000);
-        }
-
         findTarget() {
             if (!window.goods || !window.goods.length) return null;
             
             let bestTarget = null;
             let bestScore = -1;
 
+            // 获取角色位置
             const roleX = GameArg.role.x + GameArg.role.width * 0.83;
             const roleY = GameArg.role.y + GameArg.role.height * 0.37;
 
             for (let gold of window.goods) {
                 if (!gold || !gold.x || !gold.y) continue;
 
+                // 计算金币相对于角色的位置
                 const relativeX = gold.x - roleX;
                 const relativeY = gold.y + GameArg.mLayer.y - roleY;
                 
+                // 只选择上方的金币
                 if (relativeY >= 0) continue;
                 
+                // 计算距离
                 const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
                 
+                // 基础分数 - 距离越近越好
                 let score = 1000 / (distance + 1);
                 
+                // 避免选择太远的目标
                 if (distance > LF.global.height * 0.5) {
                     score *= 0.3;
                 }
                 
+                // 避免选择太近的目标
                 if (distance < LF.global.height * 0.1) {
                     score *= 0.5;
                 }
@@ -139,37 +134,29 @@
             if (!target) return false;
             
             try {
-                const canvas = LF.global.canvasObj;
-                const rect = canvas.getBoundingClientRect();
-                const touchX = target.x + rect.left;
-                const touchY = target.y + GameArg.boxTop;
-                
-                this.drawDebugLines(touchX, touchY);
-
-                const touchEvent = new TouchEvent('touchstart', {
-                    bubbles: true,
-                    cancelable: true,
-                    touches: [{
-                        identifier: Date.now(),
-                        target: canvas,
-                        pageX: touchX,
-                        pageY: touchY,
-                        clientX: touchX,
-                        clientY: touchY
-                    }],
+                // 创建一个模拟的触摸事件
+                const event = {
                     targetTouches: [{
-                        identifier: Date.now(),
-                        target: canvas,
-                        pageX: touchX,
-                        pageY: touchY,
-                        clientX: touchX,
-                        clientY: touchY
-                    }]
-                });
-
-                canvas.dispatchEvent(touchEvent);
-                this.log(`点击坐标: (${Math.round(touchX)}, ${Math.round(touchY)})`, 'success');
-                return true;
+                        pageX: target.x,
+                        pageY: target.y
+                    }],
+                    preventDefault: () => {},
+                    stopPropagation: () => {}
+                };
+                
+                // 获取游戏中的触摸处理函数
+                const canvas = LF.global.canvasObj;
+                
+                // 直接调用游戏的触摸事件处理函数
+                const touchHandlers = canvas._events && canvas._events.touchstart;
+                if (touchHandlers && touchHandlers.length) {
+                    touchHandlers[0](event);
+                    this.log(`点击坐标: (${Math.round(target.x)}, ${Math.round(target.y)})`, 'success');
+                    return true;
+                } else {
+                    this.log("找不到触摸处理函数", "error");
+                    return false;
+                }
             } catch (err) {
                 this.log(`点击错误: ${err.message}`, 'error');
                 return false;
@@ -177,20 +164,31 @@
         }
 
         calculateDelay() {
+            // 基础延迟 - 等待钩子伸出并收回的时间
             const baseDelay = 2000;
+            
+            // 根据游戏等级和速度调整
             const gameLevel = GameArg.level || 1;
-            const gameSpeed = GameArg.speed || 1;
+            
+            // 钩子速度
             const hookSpeed = GameArg.line && GameArg.line.speed ? 
                              GameArg.line.speed : LF.global.width / 300;
+            
+            // 估算钩子伸出和收回的时间
             const screenHeight = LF.global.height;
-            const hookTime = (screenHeight / hookSpeed) * 2;
+            const hookTime = (screenHeight / hookSpeed) * 2; // 伸出和收回
+            
+            // 根据游戏等级调整延迟
             let delay = hookTime + 500 - (gameLevel * 50);
+            
+            // 确保最小延迟
             return Math.max(1500, delay);
         }
 
         async autoPlay() {
             if (!this.isRunning) return;
             
+            // 检查游戏是否结束
             if (window._gameOver) {
                 this.log('游戏结束，等待重新开始', 'error');
                 setTimeout(() => {
@@ -200,6 +198,7 @@
             }
 
             try {
+                // 检查是否可以点击
                 if (!GameArg.cantouch) {
                     this.log('等待可点击状态...', 'info');
                     setTimeout(() => {
@@ -213,6 +212,7 @@
                     if (this.simulateTouch(target)) {
                         this.clickCount++;
                         
+                        // 检查得分是否增加
                         setTimeout(() => {
                             const currentScore = hg.grade.val || 0;
                             if (currentScore > this.lastScore) {
@@ -224,19 +224,23 @@
                             this.log(stats, 'success');
                         }, 1000);
                         
+                        // 计算适当的延迟
                         const delay = this.calculateDelay();
                         this.log(`等待下次点击: ${Math.round(delay)}ms`, 'info');
                         
+                        // 等待适当的时间后再次尝试
                         setTimeout(() => {
                             if (this.isRunning) this.autoPlay();
                         }, delay);
                     } else {
+                        // 点击失败，短暂等待后重试
                         setTimeout(() => {
                             if (this.isRunning) this.autoPlay();
                         }, 1000);
                     }
                 } else {
                     this.log('没有找到合适的目标，等待...', 'error');
+                    // 短暂等待后重试
                     setTimeout(() => {
                         if (this.isRunning) this.autoPlay();
                     }, 1000);
@@ -267,6 +271,7 @@
         }
     }
 
+    // 等待游戏加载完成
     const waitForGame = () => {
         if (window.GameArg && window.LF && window.LF.global && window.LF.global.canvasObj) {
             window.gameController = new GameController();
