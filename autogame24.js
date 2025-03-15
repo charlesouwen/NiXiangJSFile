@@ -7,7 +7,6 @@
             this.lastScore = 0;
             this.createUI();
             this.initLogger();
-            this.findTouchHandler();
         }
 
         createUI() {
@@ -81,22 +80,6 @@
             }
         }
 
-        // 查找游戏原始的触摸处理函数
-        findTouchHandler() {
-            // 从游戏代码中可以看到，触摸处理函数是直接添加到canvas上的
-            this.touchHandler = null;
-            
-            // 尝试获取事件处理函数
-            const canvasObj = LF.global.canvasObj;
-            if (canvasObj && canvasObj._events && canvasObj._events.touchstart) {
-                this.touchHandler = canvasObj._events.touchstart[0];
-                this.log("找到触摸处理函数", "success");
-            } else {
-                // 如果找不到，尝试从全局获取
-                this.log("未找到触摸处理函数，使用备用方法", "error");
-            }
-        }
-
         findTarget() {
             if (!window.goods || !window.goods.length) return null;
             
@@ -114,20 +97,23 @@
                 const relativeX = gold.x - roleX;
                 const relativeY = gold.y + GameArg.mLayer.y - roleY;
                 
+                // 只选择上方的金币
+                if (relativeY >= 0) continue;
+                
                 // 计算距离
                 const distance = Math.sqrt(relativeX * relativeX + relativeY * relativeY);
                 
-                // 基础分数
+                // 基础分数 - 距离越近越好
                 let score = 1000 / (distance + 1);
                 
-                // 优先选择上方的金币
-                if (relativeY < 0) {
-                    score *= 1.5;
+                // 避免选择太远的目标
+                if (distance > LF.global.height * 0.5) {
+                    score *= 0.3;
                 }
                 
-                // 避免选择太远的目标
-                if (distance > LF.global.height * 0.6) {
-                    score *= 0.3;
+                // 避免选择太近的目标
+                if (distance < LF.global.height * 0.1) {
+                    score *= 0.5;
                 }
 
                 if (score > bestScore) {
@@ -158,51 +144,16 @@
                     stopPropagation: () => {}
                 };
                 
-                // 直接调用游戏中的触摸处理函数
-                const touchHandlerFn = this.touchHandler || window.a;
+                // 获取游戏中的触摸处理函数
+                const touchHandlers = LF.global.canvasObj._events && 
+                                     LF.global.canvasObj._events.touchstart;
                 
-                if (typeof touchHandlerFn === 'function') {
-                    touchHandlerFn(touchEvent);
+                if (touchHandlers && touchHandlers.length) {
+                    touchHandlers[0](touchEvent);
                     this.log(`点击坐标: (${Math.round(target.x)}, ${Math.round(target.y)})`, 'success');
                     return true;
                 } else {
-                    // 如果找不到处理函数，尝试直接修改游戏状态
-                    if (GameArg.cantouch) {
-                        GameArg.cantouch = false;
-                        GameArg.play = true;
-                        GameArg.sz = true;
-                        GameArg.isFail = false;
-                        GameArg.jump = true;
-                        
-                        // 计算角度和方向
-                        GameArg.roleX = GameArg.role.x + 0.83 * GameArg.role.width;
-                        GameArg.roleY = GameArg.role.y + 0.37 * GameArg.role.height;
-                        GameArg.hook.x = GameArg.roleX;
-                        GameArg.hook.y = GameArg.roleY - GameArg.hook.height;
-                        
-                        const dx = target.x - GameArg.roleX;
-                        const dy = target.y - GameArg.boxTop - GameArg.roleY;
-                        const dr = Math.sqrt(dx * dx + dy * dy);
-                        
-                        GameArg.dx = dx;
-                        GameArg.dy = dy;
-                        GameArg.dr = dr;
-                        GameArg.cos = dx / dr;
-                        GameArg.sin = dy / dr;
-                        
-                        // 设置钩子角度
-                        GameArg.hook.rotate = 180 * Math.atan(dy / dx) / Math.PI + 90;
-                        if (dx < 0) GameArg.hook.rotate += 180;
-                        
-                        // 显示钩子和线
-                        GameArg.hook.visible = true;
-                        GameArg.line.visible = true;
-                        
-                        this.log(`直接修改游戏状态: (${Math.round(target.x)}, ${Math.round(target.y)})`, 'success');
-                        return true;
-                    }
-                    
-                    this.log("无法点击：游戏不可点击状态", "error");
+                    this.log("找不到触摸处理函数", "error");
                     return false;
                 }
             } catch (err) {
@@ -211,7 +162,31 @@
             }
         }
 
-        autoPlay() {
+        // 计算适当的延迟时间
+        calculateDelay() {
+            // 基础延迟 - 等待钩子伸出并收回的时间
+            const baseDelay = 2000;
+            
+            // 根据游戏等级和速度调整
+            const gameLevel = GameArg.level || 1;
+            const gameSpeed = GameArg.speed || 1;
+            
+            // 钩子速度
+            const hookSpeed = GameArg.line && GameArg.line.speed ? 
+                             GameArg.line.speed : LF.global.width / 300;
+            
+            // 估算钩子伸出和收回的时间
+            const screenHeight = LF.global.height;
+            const hookTime = (screenHeight / hookSpeed) * 2; // 伸出和收回
+            
+            // 根据游戏等级和速度调整延迟
+            let delay = hookTime + 500 - (gameLevel * 50);
+            
+            // 确保最小延迟
+            return Math.max(1500, delay);
+        }
+
+        async autoPlay() {
             if (!this.isRunning) return;
             
             // 检查游戏是否结束
@@ -229,7 +204,7 @@
                     this.log('等待可点击状态...', 'info');
                     setTimeout(() => {
                         if (this.isRunning) this.autoPlay();
-                    }, 100);
+                    }, 500);
                     return;
                 }
                 
@@ -248,16 +223,29 @@
                             
                             const stats = `点击: ${this.clickCount}, 得分: ${currentScore}, 成功率: ${(this.successCount/this.clickCount*100).toFixed(1)}%`;
                             this.log(stats, 'success');
-                        }, 500);
+                        }, 1000);
+                        
+                        // 计算适当的延迟
+                        const delay = this.calculateDelay();
+                        this.log(`等待下次点击: ${Math.round(delay)}ms`, 'info');
+                        
+                        // 等待适当的时间后再次尝试
+                        setTimeout(() => {
+                            if (this.isRunning) this.autoPlay();
+                        }, delay);
+                    } else {
+                        // 点击失败，短暂等待后重试
+                        setTimeout(() => {
+                            if (this.isRunning) this.autoPlay();
+                        }, 1000);
                     }
                 } else {
-                    this.log('没有找到合适的目标', 'error');
+                    this.log('没有找到合适的目标，等待...', 'error');
+                    // 短暂等待后重试
+                    setTimeout(() => {
+                        if (this.isRunning) this.autoPlay();
+                    }, 1000);
                 }
-                
-                // 等待一段时间后再次尝试
-                setTimeout(() => {
-                    if (this.isRunning) this.autoPlay();
-                }, 500);
             } catch (err) {
                 this.log(`执行错误: ${err.message}`, 'error');
                 setTimeout(() => {
